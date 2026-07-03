@@ -302,7 +302,7 @@ export default function App() {
           )}
           <div className="flex justify-between items-center text-[10px] text-slate-500 font-mono">
             <span>VERSI v1.1.2</span>
-            <span>© VOXMAJU</span>
+            <span>© MestreCool</span>
           </div>
         </div>
       </aside>
