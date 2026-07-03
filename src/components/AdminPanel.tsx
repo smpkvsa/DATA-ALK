@@ -1,6 +1,7 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Member, SystemSettings } from '../types';
 import { parseCurrency, formatCurrency } from '../utils/memberUtils';
+import { syncToGoogleSheets } from '../utils/appsScriptSync';
 import { 
   Lock, 
   Settings, 
@@ -16,7 +17,11 @@ import {
   Sliders,
   CheckCircle,
   XCircle,
-  Users
+  Users,
+  Database,
+  RefreshCw,
+  ExternalLink,
+  Code
 } from 'lucide-react';
 
 interface AdminPanelProps {
@@ -50,6 +55,7 @@ export default function AdminPanel({
   const [editingMember, setEditingMember] = useState<Member | null>(null);
   const [isAddingNew, setIsAddingNew] = useState(false);
   const [notification, setNotification] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+  const [isSyncing, setIsSyncing] = useState(false);
 
   // Form state for Add / Edit Member
   const [formState, setFormState] = useState<Partial<Member>>({});
@@ -144,7 +150,7 @@ export default function AdminPanel({
   };
 
   // Save Add or Edit Member
-  const handleSaveMember = (e: React.FormEvent) => {
+  const handleSaveMember = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formState.NAMA?.trim()) {
       triggerNotice('Nama ahli wajib diisi!', 'error');
@@ -165,14 +171,38 @@ export default function AdminPanel({
         return;
       }
 
+      if (settings.googleAppsScriptUrl) {
+        setIsSyncing(true);
+        const res = await syncToGoogleSheets(settings.googleAppsScriptUrl, 'ADD_MEMBER', memberToSave);
+        setIsSyncing(false);
+        if (!res.success) {
+          triggerNotice(`Sinc Gagal: ${res.message}. Data disimpan di Cache Tempatan sahaja.`, 'error');
+        } else {
+          triggerNotice('Ahli baru berjaya didaftarkan ke Google Sheets & Sistem!');
+        }
+      } else {
+        triggerNotice('Ahli baru berjaya didaftarkan!');
+      }
+
       const updatedMembers = [memberToSave, ...members];
       onUpdateMembers(updatedMembers);
-      triggerNotice('Ahli baru berjaya didaftarkan!');
       setIsAddingNew(false);
     } else if (editingMember) {
+      if (settings.googleAppsScriptUrl) {
+        setIsSyncing(true);
+        const res = await syncToGoogleSheets(settings.googleAppsScriptUrl, 'UPDATE_MEMBER', memberToSave);
+        setIsSyncing(false);
+        if (!res.success) {
+          triggerNotice(`Sinc Gagal: ${res.message}. Data dikemaskini di Cache Tempatan sahaja.`, 'error');
+        } else {
+          triggerNotice('Maklumat ahli berjaya dikemaskini ke Google Sheets & Sistem!');
+        }
+      } else {
+        triggerNotice('Maklumat ahli berjaya dikemaskini!');
+      }
+
       const updatedMembers = members.map(m => m.ID === editingMember.ID ? memberToSave : m);
       onUpdateMembers(updatedMembers);
-      triggerNotice('Maklumat ahli berjaya dikemaskini!');
       setEditingMember(null);
     }
     
@@ -180,16 +210,32 @@ export default function AdminPanel({
   };
 
   // Handle Delete Member
-  const handleDeleteMember = (memberId: string, name: string) => {
+  const handleDeleteMember = async (memberId: string, name: string) => {
     if (window.confirm(`Adakah anda pasti mahu menghapus rekod ahli "${name}"? Tindakan ini tidak boleh diundurkan.`)) {
+      if (settings.googleAppsScriptUrl) {
+        setIsSyncing(true);
+        const res = await syncToGoogleSheets(settings.googleAppsScriptUrl, 'DELETE_MEMBER', { ID: memberId });
+        setIsSyncing(false);
+        if (!res.success) {
+          triggerNotice(`Sinc Gagal: ${res.message}. Data dikeluarkan dari Cache Tempatan sahaja.`, 'error');
+        } else {
+          triggerNotice('Rekod ahli berjaya dihapuskan dari Google Sheets & Sistem!');
+        }
+      } else {
+        triggerNotice('Rekod ahli berjaya dihapuskan!');
+      }
+
       const updatedMembers = members.filter(m => m.ID !== memberId);
       onUpdateMembers(updatedMembers);
-      triggerNotice('Rekod ahli berjaya dihapuskan!');
     }
   };
 
   // Handle Settings modification
   const [settingsForm, setSettingsForm] = useState<SystemSettings>({ ...settings });
+  
+  useEffect(() => {
+    setSettingsForm({ ...settings });
+  }, [settings]);
   
   const handleSaveSettings = (e: React.FormEvent) => {
     e.preventDefault();
@@ -330,6 +376,17 @@ export default function AdminPanel({
       {/* Active Tab rendering */}
       {activeAdminTab === 'members' && (
         <div className="space-y-6">
+          {settings.googleSheetsUrl && (
+            <div className="p-4 bg-amber-50/70 backdrop-blur-md rounded-2xl border border-amber-200/50 flex gap-3 text-amber-850">
+              <Info className="w-5 h-5 shrink-0 mt-0.5 text-amber-600" />
+              <div className="text-xs space-y-1">
+                <p className="font-bold">Sambungan Google Sheets Aktif</p>
+                <p className="text-amber-700 leading-relaxed">
+                  Data ahli utama dimuat secara automatik dari Google Sheets anda. Sebarang pendaftaran ahli baru atau suntingan di sini hanya disimpan dalam <strong>Cache Pelayar Tempatan</strong>. Sila buat perubahan kekal terus di Google Sheets anda dan muat semula aplikasi untuk melihat perubahan disegerakkan.
+                </p>
+              </div>
+            </div>
+          )}
           {/* Action Row */}
           {!isAddingNew && !editingMember && (
             <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-4">
@@ -586,9 +643,20 @@ export default function AdminPanel({
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 bg-slate-900 hover:bg-slate-950 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 transition-colors shadow-sm"
+                  disabled={isSyncing}
+                  className={`px-5 py-2 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 transition-colors shadow-sm ${
+                    isSyncing ? 'bg-indigo-600 cursor-not-allowed' : 'bg-slate-900 hover:bg-slate-950'
+                  }`}
                 >
-                  <Save className="w-4 h-4" /> Simpan Rekod
+                  {isSyncing ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" /> Menyelaras Google Sheets...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-4 h-4" /> Simpan Rekod
+                    </>
+                  )}
                 </button>
               </div>
             </form>
@@ -720,6 +788,185 @@ export default function AdminPanel({
                 value={settingsForm.minShareAmount}
                 onChange={(e) => setSettingsForm(prev => ({ ...prev, minShareAmount: parseFloat(e.target.value) || 0 }))}
               />
+            </div>
+
+            <div className="col-span-1 sm:col-span-2">
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1 flex items-center gap-1.5 text-indigo-600">
+                <Database className="w-3.5 h-3.5" /> Pautan Google Sheets (Published HTML/CSV)
+              </label>
+              <input
+                type="text"
+                className="w-full px-3 py-2 glass-input rounded-xl text-xs text-slate-800 font-mono"
+                placeholder="Contoh: https://docs.google.com/spreadsheets/d/e/.../pubhtml"
+                value={settingsForm.googleSheetsUrl || ''}
+                onChange={(e) => setSettingsForm(prev => ({ ...prev, googleSheetsUrl: e.target.value }))}
+              />
+              <p className="text-[10px] text-slate-500 mt-1.5 leading-relaxed">
+                Pautan Google Sheet anda yang telah diterbitkan ke web. Sistem menyokong format <strong>pubhtml</strong>, <strong>pub?output=csv</strong> atau pautan perkongsian biasa. Data akan diselaraskan secara dinamik di dashboard dan senarai ahli.
+              </p>
+            </div>
+
+            <div className="col-span-1 sm:col-span-2 border-t border-slate-100/50 pt-5 space-y-4">
+              <div>
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1 flex items-center gap-1.5 text-emerald-600">
+                  <Code className="w-3.5 h-3.5" /> Pautan Google Apps Script Web App (Dua Hala - Menulis & Menghapus Data)
+                </label>
+                <input
+                  type="text"
+                  className="w-full px-3 py-2 glass-input rounded-xl text-xs text-slate-800 font-mono"
+                  placeholder="Contoh: https://script.google.com/macros/s/.../exec"
+                  value={settingsForm.googleAppsScriptUrl || ''}
+                  onChange={(e) => setSettingsForm(prev => ({ ...prev, googleAppsScriptUrl: e.target.value }))}
+                />
+                <p className="text-[10px] text-slate-500 mt-1.5 leading-relaxed">
+                  Untuk membolehkan aplikasi ini <strong>menulis semula, mengemaskini, atau mengeluarkan data</strong> terus ke Google Sheets dalam masa nyata, masukkan URL Web App Apps Script anda di bawah.
+                </p>
+              </div>
+
+              {/* Step-by-Step Instructions Panel */}
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200/60 space-y-3">
+                <span className="text-[10px] font-extrabold text-slate-500 uppercase tracking-widest block font-mono flex items-center gap-1">
+                  <Info className="w-3.5 h-3.5 text-indigo-500" /> Panduan Langkah Demi Langkah Integrasi Google Apps Script:
+                </span>
+                <ol className="list-decimal list-inside text-[11px] text-slate-600 space-y-1.5 leading-relaxed font-sans">
+                  <li>Buka fail Google Sheet anda.</li>
+                  <li>Klik menu <strong>Extensions &gt; Apps Script</strong>.</li>
+                  <li>Padam semua kod sedia ada, salin kod Apps Script (klik butang hitam di bawah) dan tampal di dalam editor tersebut.</li>
+                  <li>Simpan fail dengan klik ikon disket / tekan <code>Ctrl + S</code>.</li>
+                  <li>Klik butang <strong>Deploy &gt; New deployment</strong> di penjuru kanan atas.</li>
+                  <li>Pilih jenis <strong>Web app</strong> (klik ikon gerigi &gt; Web app jika tiada).</li>
+                  <li>Set tetapan berikut:
+                    <ul className="list-disc list-inside pl-4 mt-1 space-y-0.5 font-semibold text-slate-700">
+                      <li>Execute as: <span className="text-indigo-600 font-bold">Me (e-mel anda)</span></li>
+                      <li>Who has access: <span className="text-indigo-600 font-bold">Anyone</span> (Sangat penting agar aplikasi ini dibenarkan menghantar kemaskini)</li>
+                    </ul>
+                  </li>
+                  <li>Klik <strong>Deploy</strong>, benarkan kebenaran akses (Authorize Access) jika diminta oleh Google.</li>
+                  <li>Salin <strong>Web App URL</strong> yang dihasilkan dan tampal ke dalam ruangan input hijau di atas!</li>
+                </ol>
+
+                <div className="pt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const code = `function doPost(e) {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheets()[0];
+  var data;
+  try {
+    data = JSON.parse(e.postData.contents);
+  } catch(err) {
+    return ContentService.createTextOutput(JSON.stringify({success: false, message: "Invalid JSON format: " + err.message}))
+                         .setMimeType(ContentService.MimeType.JSON);
+  }
+  
+  var action = data.action;
+  var member = data.member;
+  
+  if (!action || !member) {
+    return ContentService.createTextOutput(JSON.stringify({success: false, message: "Missing action or member data"}))
+                         .setMimeType(ContentService.MimeType.JSON);
+  }
+  
+  var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  
+  if (action === "ADD_MEMBER") {
+    // Append a new row matching headers
+    var newRow = [];
+    for (var i = 0; i < headers.length; i++) {
+      var header = headers[i];
+      var val = member[header] !== undefined ? member[header] : "";
+      newRow.push(val);
+    }
+    sheet.appendRow(newRow);
+    return ContentService.createTextOutput(JSON.stringify({success: true, message: "Member added successfully"}))
+                         .setMimeType(ContentService.MimeType.JSON);
+  }
+  
+  // Find Row Index by ID
+  var idColIndex = headers.indexOf("ID") + 1;
+  if (idColIndex === 0) {
+    return ContentService.createTextOutput(JSON.stringify({success: false, message: "ID column not found in sheet"}))
+                         .setMimeType(ContentService.MimeType.JSON);
+  }
+  
+  var numRows = sheet.getLastRow();
+  var ids = numRows > 1 ? sheet.getRange(2, idColIndex, numRows - 1, 1).getValues() : [];
+  var targetRowIndex = -1;
+  
+  for (var r = 0; r < ids.length; r++) {
+    if (String(ids[r][0]) === String(member.ID)) {
+      targetRowIndex = r + 2; // Row starts from index 2
+      break;
+    }
+  }
+  
+  if (targetRowIndex === -1) {
+    // Fallback search by Name or IC if ID is newly generated or not found
+    var nameColIndex = headers.indexOf("NAMA") + 1;
+    var kpColIndex = headers.indexOf("NO K/P") + 1;
+    var names = nameColIndex > 0 && numRows > 1 ? sheet.getRange(2, nameColIndex, numRows - 1, 1).getValues() : [];
+    var kps = kpColIndex > 0 && numRows > 1 ? sheet.getRange(2, kpColIndex, numRows - 1, 1).getValues() : [];
+    
+    for (var r = 0; r < names.length; r++) {
+      if ((member.NAMA && String(names[r][0]) === String(member.NAMA)) || 
+          (member["NO K/P"] && kps[r] && String(kps[r][0]) === String(member["NO K/P"]))) {
+        targetRowIndex = r + 2;
+        break;
+      }
+    }
+  }
+  
+  if (action === "UPDATE_MEMBER") {
+    if (targetRowIndex === -1) {
+      // If not found, append as new
+      var newRow = [];
+      for (var i = 0; i < headers.length; i++) {
+        var header = headers[i];
+        var val = member[header] !== undefined ? member[header] : "";
+        newRow.push(val);
+      }
+      sheet.appendRow(newRow);
+      return ContentService.createTextOutput(JSON.stringify({success: true, message: "Member not found, added as new instead"}))
+                           .setMimeType(ContentService.MimeType.JSON);
+    }
+    
+    // Update existing row
+    for (var i = 0; i < headers.length; i++) {
+      var header = headers[i];
+      if (member[header] !== undefined) {
+        sheet.getRange(targetRowIndex, i + 1).setValue(member[header]);
+      }
+    }
+    return ContentService.createTextOutput(JSON.stringify({success: true, message: "Member updated successfully"}))
+                         .setMimeType(ContentService.MimeType.JSON);
+  }
+  
+  if (action === "DELETE_MEMBER") {
+    if (targetRowIndex === -1) {
+      return ContentService.createTextOutput(JSON.stringify({success: false, message: "Member to delete not found in sheet"}))
+                           .setMimeType(ContentService.MimeType.JSON);
+    }
+    sheet.deleteRow(targetRowIndex);
+    return ContentService.createTextOutput(JSON.stringify({success: true, message: "Member deleted successfully"}))
+                         .setMimeType(ContentService.MimeType.JSON);
+  }
+  
+  return ContentService.createTextOutput(JSON.stringify({success: false, message: "Unknown action"}))
+                       .setMimeType(ContentService.MimeType.JSON);
+}
+
+function doGet(e) {
+  return HtmlService.createHtmlOutput("<h3>Google Apps Script Web App is Online!</h3>");
+}`;
+                      navigator.clipboard.writeText(code);
+                      alert('Kod Google Apps Script telah berjaya disalin ke Clipboard anda! Sila tampal di dalam tetingkap Apps Script.');
+                    }}
+                    className="px-3.5 py-2 bg-slate-900 hover:bg-slate-950 text-white font-mono text-[10px] font-bold rounded-xl transition-colors flex items-center gap-1.5 shadow-sm"
+                  >
+                    <Code className="w-3.5 h-3.5" /> Salin Kod Apps Script (Copy Script Code)
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
 

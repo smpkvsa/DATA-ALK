@@ -6,6 +6,7 @@ import MembersList from './components/MembersList';
 import Reports from './components/Reports';
 import AdminPanel from './components/AdminPanel';
 import PrintReport from './components/PrintReport';
+import { normalizeSheetsUrl, parseCSV } from './utils/sheetsSync';
 import { 
   LayoutDashboard, 
   Users, 
@@ -14,14 +15,19 @@ import {
   Menu, 
   X, 
   TrendingUp,
-  Award
+  Award,
+  Database,
+  RefreshCw,
+  CheckCircle2,
+  AlertTriangle
 } from 'lucide-react';
 
 const DEFAULT_SETTINGS: SystemSettings = {
   cooperativeName: 'Kelab Kebajikan Guru & Staf VoxMaju',
   dividendRate: 6.5,
   financialYear: '2026',
-  minShareAmount: 50.00
+  minShareAmount: 50.00,
+  googleSheetsUrl: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQIcjkJcdGZtvtvbw_I9S3wcvHcv4C3PVftHtf2Ewejh1VAIyb54BIwT6fgQeQWXqI5eQKgOUV0Zb5e/pubhtml'
 };
 
 export default function App() {
@@ -64,6 +70,57 @@ export default function App() {
 
   // Printable Report Overlay state
   const [printData, setPrintData] = useState<{ reportMembers: Member[]; title: string } | null>(null);
+
+  // Google Sheets Synchronization state
+  const [syncing, setSyncing] = useState(false);
+  const [syncError, setSyncError] = useState<string | null>(null);
+  const [lastSyncTime, setLastSyncTime] = useState<string | null>(() => {
+    return localStorage.getItem('vox_last_sync_time');
+  });
+
+  const syncGoogleSheets = async (targetUrl?: string) => {
+    const sheetsUrl = targetUrl !== undefined ? targetUrl : settings.googleSheetsUrl;
+    if (!sheetsUrl) {
+      setSyncError('Tiada pautan Google Sheets dikonfigurasikan.');
+      return;
+    }
+
+    setSyncing(true);
+    setSyncError(null);
+
+    try {
+      const normalizedUrl = normalizeSheetsUrl(sheetsUrl);
+      const response = await fetch(normalizedUrl);
+      if (!response.ok) {
+        throw new Error(`Ralat respons: ${response.status} ${response.statusText}`);
+      }
+      const csvText = await response.text();
+      const parsedMembers = parseCSV(csvText);
+
+      if (parsedMembers.length === 0) {
+        throw new Error('Tiada rekod ahli yang sah ditemui dalam Google Sheets ini.');
+      }
+
+      setMembers(parsedMembers);
+      
+      const now = new Date();
+      const nowStr = now.toLocaleDateString('ms-MY') + ' ' + now.toLocaleTimeString('ms-MY', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      setLastSyncTime(nowStr);
+      localStorage.setItem('vox_last_sync_time', nowStr);
+    } catch (err: any) {
+      console.error('Sheets Sync Error:', err);
+      setSyncError(err.message || 'Gagal memuat turun data dari Google Sheets.');
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  // Auto sync when googleSheetsUrl mounts or changes
+  useEffect(() => {
+    if (settings.googleSheetsUrl) {
+      syncGoogleSheets(settings.googleSheetsUrl);
+    }
+  }, [settings.googleSheetsUrl]);
 
   // Sync members to localStorage
   useEffect(() => {
@@ -116,12 +173,33 @@ export default function App() {
           </div>
           <span className="font-extrabold text-sm uppercase tracking-wider font-sans">VoxMaju</span>
         </div>
-        <button
-          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          className="p-1 text-slate-300 hover:text-white"
-        >
-          {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-        </button>
+        <div className="flex items-center gap-3">
+          {settings.googleSheetsUrl && (
+            <button 
+              onClick={() => syncGoogleSheets()} 
+              disabled={syncing}
+              className={`p-1.5 rounded-lg border text-[10px] flex items-center gap-1 transition-all ${
+                syncError 
+                  ? 'bg-rose-500/10 border-rose-500/30 text-rose-300' 
+                  : syncing 
+                    ? 'bg-indigo-600/20 border-indigo-500/20 text-indigo-300'
+                    : 'bg-white/5 border-white/10 text-emerald-400'
+              }`}
+              title="Segarkan data Google Sheets"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin' : ''}`} />
+              <span className="hidden sm:inline text-[9px] font-medium font-sans">
+                {syncing ? 'Sinc...' : 'Sheets'}
+              </span>
+            </button>
+          )}
+          <button
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            className="p-1 text-slate-300 hover:text-white"
+          >
+            {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+          </button>
+        </div>
       </header>
 
       {/* Left Sidebar (Desktop and Mobile Drawer) with Glass Dark Look */}
@@ -249,9 +327,47 @@ export default function App() {
               {settings.cooperativeName}
             </h1>
           </div>
-          <div className="text-xs text-slate-600 font-mono font-medium flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-            Penyata Sesi Kewangan: {settings.financialYear}
+          
+          <div className="flex items-center gap-4">
+            {/* Google Sheets Sync Indicator & Controller */}
+            {settings.googleSheetsUrl && (
+              <div className="flex items-center gap-2 bg-slate-900/5 hover:bg-slate-900/8 border border-slate-900/10 px-3 py-1.5 rounded-xl transition-all">
+                {syncing ? (
+                  <RefreshCw className="w-3.5 h-3.5 text-indigo-600 animate-spin" />
+                ) : syncError ? (
+                  <AlertTriangle className="w-3.5 h-3.5 text-rose-500" />
+                ) : (
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                )}
+                
+                <div className="text-[10px] font-sans">
+                  {syncing ? (
+                    <span className="text-slate-500 font-medium">Menyelaras Sheets...</span>
+                  ) : syncError ? (
+                    <span className="text-rose-600 font-bold" title={syncError}>Ralat Sinc Google Sheets</span>
+                  ) : (
+                    <div className="text-slate-600 flex flex-col leading-none">
+                      <span className="font-bold text-emerald-700">Google Sheets Aktif</span>
+                      {lastSyncTime && <span className="text-[8px] text-slate-400 mt-0.5">Sinc: {lastSyncTime}</span>}
+                    </div>
+                  )}
+                </div>
+
+                <button 
+                  onClick={() => syncGoogleSheets()} 
+                  disabled={syncing}
+                  className="p-1 bg-white hover:bg-slate-50 rounded-lg shadow-xs text-slate-500 hover:text-slate-700 transition-colors shrink-0"
+                  title="Segarkan data dari Google Sheets sekarang"
+                >
+                  <RefreshCw className={`w-3 h-3 ${syncing ? 'animate-spin' : ''}`} />
+                </button>
+              </div>
+            )}
+
+            <div className="text-xs text-slate-600 font-mono font-medium flex items-center gap-1.5 shrink-0">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+              Penyata Sesi Kewangan: {settings.financialYear}
+            </div>
           </div>
         </div>
 

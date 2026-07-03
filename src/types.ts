@@ -29,4 +29,6 @@ export interface SystemSettings {
   dividendRate: number; // e.g. 5 for 5%
   financialYear: string;
   minShareAmount: number;
+  googleSheetsUrl?: string;
+  googleAppsScriptUrl?: string;
 }
