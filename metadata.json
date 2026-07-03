@@ -1,0 +1,6 @@
+{
+  "name": "Sistem Data & Saham Koperasi VoxMaju",
+  "description": "Sistem portal korporat mesra peranti untuk mengurus pangkalan data ahli, memantau caruman saham secara masa nyata, dan menjana laporan agregat PDF/Excel rasmi.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
