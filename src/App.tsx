@@ -219,8 +219,8 @@ export default function App() {
           <div className="flex items-center gap-3 border-b border-slate-800/80 pb-5">
             <CoopLogo size={52} />
             <div>
-              <h1 className="font-extrabold text-sm uppercase tracking-wider font-sans leading-tight">VoxMaju</h1>
-              <p className="text-[10px] text-slate-400 font-mono mt-0.5">Sistem Saham & Ahli</p>
+              <h1 className="font-extrabold text-sm uppercase tracking-wider font-sans leading-tight">KOPERASI</h1>
+              <p className="text-[10px] text-slate-400 font-mono mt-0.5">Smpkvsa Berhad</p>
             </div>
           </div>
 
