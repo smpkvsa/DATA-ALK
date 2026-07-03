@@ -336,7 +336,7 @@ export default function AdminPanel({
           </form>
 
           <p className="text-[10px] text-slate-400 font-mono">
-            KATA LALUAN : "Rujuk Setiausaha Koop ya!"
+            KATA LALUAN : "Rujuk Setiausaha Koop ya"
           </p>
         </div>
       </div>
