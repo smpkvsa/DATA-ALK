@@ -87,9 +87,9 @@ export function filterMembers(
  */
 export function exportToCSV(members: Member[], filename: string) {
   const headers = [
-    'ID', 'NAMA', 'NO K/P', 'NO AHLI', 'JUMLAH SAHAM SEMASA', 'ID DAFTAR', 
-    'TARIKH DAFTAR AHLI', 'TARIKH BEHENTI', 'JANTINA', 'NO TEL', 'STATUS AHLI', 
-    'PENAMBAHAN SAHAM', 'PENGELUARAN SAHAM', 'DIVIDEN TAHUN SEMASA', 'CATATAN'
+    'ID', 'NAMA', 'NO K/P', 'NO AHLI', 'JUMLAH SAHAM SEMASA', 'DIVIDEN 2023', 'CATATAN', 
+    'KAEDAH KEMBALIAN SYER', 'ID DAFTAR', 'TARIKH DAFTAR AHLI', 'TARIKH BEHENTI', 
+    'JANTINA', 'STATUS AHLI', 'TINGKATAN', 'KURSUS', 'DIVIDEN SEMASA', 'STATUS SYER'
   ];
 
   const csvRows = [
@@ -103,16 +103,18 @@ export function exportToCSV(members: Member[], filename: string) {
       escapeCSVField(member['NO K/P']),
       escapeCSVField(member['NO AHLI']),
       escapeCSVField(member['JUMLAH SAHAM SEMASA']),
+      escapeCSVField(member['DIVIDEN 2023']),
+      escapeCSVField(member.CATATAN),
+      escapeCSVField(member['KAEDAH KEMBALIAN SYER']),
       escapeCSVField(member['ID DAFTAR']),
       escapeCSVField(member['TARIKH DAFTAR AHLI']),
       escapeCSVField(member['TARIKH BEHENTI']),
       escapeCSVField(member.JANTINA),
-      escapeCSVField(member['NO TEL']),
       escapeCSVField(member['STATUS AHLI']),
-      escapeCSVField(member['PENAMBAHAN SAHAM']),
-      escapeCSVField(member['PENGELUARAN SAHAM']),
-      escapeCSVField(member['DIVIDEN TAHUN SEMASA']),
-      escapeCSVField(member.CATATAN)
+      escapeCSVField(member.TINGKATAN),
+      escapeCSVField(member.KURSUS),
+      escapeCSVField(member['DIVIDEN SEMASA']),
+      escapeCSVField(member['STATUS SYER'])
     ];
     csvRows.push(row.join(','));
   });
@@ -136,4 +138,33 @@ function escapeCSVField(val: string | undefined | null): string {
     return `"${text.replace(/"/g, '""')}"`;
   }
   return text;
+}
+
+/**
+ * Checks if a member registered before the year 2023 (i.e. year < 2023).
+ * Supported format: "DD/MM/YYYY" or "YYYY-MM-DD".
+ */
+export function isRegisteredBefore2023(registerDateStr: string | undefined | null): boolean {
+  if (!registerDateStr) return false;
+  
+  const cleaned = String(registerDateStr).trim();
+  
+  // Format DD/MM/YYYY
+  if (cleaned.includes('/')) {
+    const parts = cleaned.split('/');
+    if (parts.length === 3) {
+      const year = parseInt(parts[2], 10);
+      if (!isNaN(year)) {
+        return year < 2023;
+      }
+    }
+  }
+  
+  // Format YYYY-MM-DD or standard JS Date string
+  const date = new Date(cleaned);
+  if (!isNaN(date.getTime())) {
+    return date.getFullYear() < 2023;
+  }
+  
+  return false;
 }

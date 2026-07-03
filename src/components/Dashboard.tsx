@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { Member, SystemSettings } from '../types';
 import { parseCurrency, formatCurrency } from '../utils/memberUtils';
+import CoopLogo from './CoopLogo';
 import { 
   TrendingUp, 
   Users, 
@@ -115,19 +116,22 @@ export default function Dashboard({ members, settings }: DashboardProps) {
   return (
     <div className="space-y-6" id="dashboard-container">
       {/* Top Welcome Banner */}
-      <div className="bg-gradient-to-r from-slate-900 to-indigo-950 rounded-2xl p-6 text-white shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <span className="bg-indigo-500/20 text-indigo-300 text-xs px-3 py-1 rounded-full border border-indigo-400/20 font-mono">
-            {settings.financialYear} FINANCIAL METRICS
-          </span>
-          <h2 className="text-2xl font-bold mt-2 font-sans tracking-tight">
-            {settings.cooperativeName}
-          </h2>
-          <p className="text-slate-300 text-sm mt-1 max-w-xl font-sans">
-            Analisis prestasi data keahlian dan pegangan saham secara masa nyata. Sistem dikonfigurasi dengan kadar dividen semasa sebanyak <span className="text-emerald-400 font-bold">{settings.dividendRate}%</span>.
-          </p>
+      <div className="bg-gradient-to-r from-slate-900 to-indigo-950 rounded-2xl p-6 text-white shadow-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 flex-1">
+          <CoopLogo size={90} className="bg-slate-950/30 p-1.5 rounded-2xl border border-slate-800 shrink-0 shadow-inner" />
+          <div>
+            <span className="bg-indigo-500/20 text-indigo-300 text-xs px-3 py-1 rounded-full border border-indigo-400/20 font-mono">
+              {settings.financialYear} FINANCIAL METRICS
+            </span>
+            <h2 className="text-2xl font-bold mt-2 font-sans tracking-tight leading-tight">
+              {settings.cooperativeName}
+            </h2>
+            <p className="text-slate-300 text-sm mt-1 max-w-xl font-sans leading-relaxed">
+              Analisis prestasi data keahlian dan pegangan saham secara masa nyata. Sistem dikonfigurasi dengan kadar dividen semasa sebanyak <span className="text-emerald-400 font-bold">{settings.dividendRate}%</span>.
+            </p>
+          </div>
         </div>
-        <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/10 flex flex-col items-end shrink-0">
+        <div className="bg-white/10 backdrop-blur-md rounded-xl p-4 border border-white/10 flex flex-col items-end shrink-0 self-stretch sm:self-auto justify-center">
           <span className="text-xs text-slate-300 font-mono uppercase tracking-wider">Kadar Dividen</span>
           <span className="text-3xl font-extrabold text-emerald-400 font-mono">{settings.dividendRate}%</span>
         </div>

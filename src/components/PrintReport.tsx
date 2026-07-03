@@ -2,6 +2,7 @@ import React from 'react';
 import { Member, SystemSettings } from '../types';
 import { parseCurrency, formatCurrency } from '../utils/memberUtils';
 import { Printer, ArrowLeft, Download } from 'lucide-react';
+import CoopLogo from './CoopLogo';
 
 interface PrintReportProps {
   reportMembers: Member[];
@@ -76,17 +77,20 @@ export default function PrintReport({
       <div className="max-w-5xl mx-auto bg-white p-8 sm:p-12 rounded-2xl shadow-md border border-slate-100 print:shadow-none print:border-none print:p-0">
         
         {/* Letterhead Header */}
-        <div className="border-b-4 border-slate-900 pb-5 text-center sm:text-left flex flex-col sm:flex-row justify-between items-center gap-4">
-          <div className="space-y-1 flex-1">
-            <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-slate-950 font-sans uppercase">
-              {settings.cooperativeName}
-            </h1>
-            <p className="text-xs text-slate-500 font-medium">
-              SISTEM PORTAL INTEGRASI DATA & SAHAM AHLI • LAPORAN RASMI
-            </p>
-            <p className="text-[10px] text-slate-400 font-mono">
-              Dijana Pada: {currentDateTimeStr} • Sesi Penyata: {settings.financialYear}
-            </p>
+        <div className="border-b-4 border-slate-900 pb-5 text-center sm:text-left flex flex-col sm:flex-row justify-between items-center gap-5">
+          <div className="flex flex-col sm:flex-row items-center gap-4 flex-1">
+            <CoopLogo size={82} className="shrink-0 print:block" />
+            <div className="space-y-1 text-center sm:text-left">
+              <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-slate-950 font-sans uppercase leading-tight">
+                {settings.cooperativeName}
+              </h1>
+              <p className="text-xs text-slate-500 font-medium">
+                SISTEM PORTAL INTEGRASI DATA & SAHAM AHLI • LAPORAN RASMI
+              </p>
+              <p className="text-[10px] text-slate-400 font-mono">
+                Dijana Pada: {currentDateTimeStr} • Sesi Penyata: {settings.financialYear}
+              </p>
+            </div>
           </div>
           <div className="border-2 border-slate-900 px-4 py-2 rounded font-mono font-bold text-center text-xs text-slate-900 bg-slate-50 shrink-0 uppercase tracking-widest">
             KOPERASI RASMI

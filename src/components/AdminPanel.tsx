@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Member, SystemSettings } from '../types';
-import { parseCurrency, formatCurrency } from '../utils/memberUtils';
+import { parseCurrency, formatCurrency, isRegisteredBefore2023 } from '../utils/memberUtils';
 import { syncToGoogleSheets } from '../utils/appsScriptSync';
 import { 
   Lock, 
@@ -112,15 +112,20 @@ export default function AdminPanel({
       'NO K/P': '',
       'NO AHLI': nextMemberNo,
       'JUMLAH SAHAM SEMASA': 'RM 0.00',
+      'DIVIDEN 2023': 'RM 0.00',
       CATATAN: '',
+      'KAEDAH KEMBALIAN SYER': '',
       'ID DAFTAR': 'DAFTAR',
       'TARIKH DAFTAR AHLI': new Date().toLocaleDateString('en-GB'),
       'TARIKH BEHENTI': '',
       JANTINA: 'LELAKI',
-      'NO TEL': '',
       'STATUS AHLI': 'GURU',
       TINGKATAN: '',
       KURSUS: '',
+      'DIVIDEN SEMASA': 'RM 0.00',
+      'STATUS SYER': 'AKTIF',
+      // Past compatibility fields
+      'NO TEL': '',
       'PENAMBAHAN SAHAM': 'RM 0.00',
       'TARIKH PENAMBAHAN': '',
       'PENGELUARAN SAHAM': 'RM 0.00',
@@ -138,11 +143,18 @@ export default function AdminPanel({
     setFormState(prev => {
       const updated = { ...prev, [key]: value };
       
-      // Calculate dividend dynamically if share value changes
-      if (key === 'JUMLAH SAHAM SEMASA') {
-        const numericSaham = parseCurrency(value);
+      // Calculate dividend dynamically if share value or registration date changes
+      if (key === 'JUMLAH SAHAM SEMASA' || key === 'TARIKH DAFTAR AHLI') {
+        const numericSaham = parseCurrency(updated['JUMLAH SAHAM SEMASA']);
         const calculatedDiv = (numericSaham * settings.dividendRate) / 100;
+        updated['DIVIDEN SEMASA'] = `RM ${calculatedDiv.toFixed(2)}`;
         updated['DIVIDEN TAHUN SEMASA'] = `RM ${calculatedDiv.toFixed(2)}`;
+        
+        if (isRegisteredBefore2023(updated['TARIKH DAFTAR AHLI'])) {
+          updated['DIVIDEN 2023'] = `RM ${calculatedDiv.toFixed(2)}`;
+        } else {
+          updated['DIVIDEN 2023'] = 'RM 0.00';
+        }
       }
 
       return updated;
@@ -250,6 +262,26 @@ export default function AdminPanel({
 
     onUpdateSettings(settingsForm);
     triggerNotice('Tetapan sistem berjaya disimpan!');
+  };
+
+  // Bulk calculate all dividends for all members
+  const handleRecalculateAllDividends = () => {
+    if (window.confirm(`Adakah anda pasti mahu mengira semula Dividen Semasa dan Dividen 2023 untuk semua ahli (${members.length} orang) berdasarkan kadar dividen semasa (${settingsForm.dividendRate}%)?\n\nSemua dividen ahli akan digantikan dengan kiraan formula:\nKiraan = Jumlah Saham Semasa × ${settingsForm.dividendRate}%\n\nNota: Bagi Dividen 2023, sistem hanya akan mengira nilai untuk ahli yang mendaftar SEBELUM tahun 2023 sahaja. Ahli lain akan ditetapkan kepada RM 0.00.`)) {
+      const updated = members.map(m => {
+        const saham = parseCurrency(m['JUMLAH SAHAM SEMASA']);
+        const calculatedDiv = (saham * settingsForm.dividendRate) / 100;
+        const divFormatted = `RM ${calculatedDiv.toFixed(2)}`;
+        const has2023 = isRegisteredBefore2023(m['TARIKH DAFTAR AHLI']);
+        return {
+          ...m,
+          'DIVIDEN SEMASA': divFormatted,
+          'DIVIDEN TAHUN SEMASA': divFormatted,
+          'DIVIDEN 2023': has2023 ? divFormatted : 'RM 0.00'
+        };
+      });
+      onUpdateMembers(updated);
+      triggerNotice(`Berjaya mengira semula dividen untuk ${members.length} orang ahli menggunakan formula!`);
+    }
   };
 
   // Lock screen view
@@ -439,7 +471,7 @@ export default function AdminPanel({
                 {/* Section: Profil Peribadi */}
                 <div className="space-y-3">
                   <h4 className="font-bold text-indigo-900 border-l-4 border-indigo-600 pl-2">1. Profil Peribadi Ahli</h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
                     <div>
                       <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Nama Penuh (Wajib)</label>
                       <input
@@ -474,13 +506,13 @@ export default function AdminPanel({
                       </select>
                     </div>
                     <div>
-                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">No. Telefon</label>
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Kursus</label>
                       <input
                         type="text"
                         className="w-full px-3 py-2 glass-input rounded-xl text-xs text-slate-800"
-                        value={formState['NO TEL'] || ''}
-                        onChange={(e) => handleInputChange('NO TEL', e.target.value)}
-                        placeholder="Contoh: 012-3456789"
+                        value={formState.KURSUS || ''}
+                        onChange={(e) => handleInputChange('KURSUS', e.target.value)}
+                        placeholder="Contoh: TEKNOLOGI REKABENTUK"
                       />
                     </div>
                   </div>
@@ -488,7 +520,7 @@ export default function AdminPanel({
 
                 {/* Section: Status Keahlian */}
                 <div className="space-y-3 pt-3 border-t border-slate-100">
-                  <h4 className="font-bold text-indigo-900 border-l-4 border-indigo-600 pl-2">2. Status Keahlian & Sesi</h4>
+                  <h4 className="font-bold text-indigo-900 border-l-4 border-indigo-600 pl-2">2. Status Keahlian & Kategori</h4>
                   <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
                     <div>
                       <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Kategori Ahli</label>
@@ -525,13 +557,13 @@ export default function AdminPanel({
                       />
                     </div>
                     <div>
-                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Sesi / Tahun</label>
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Tingkatan / Unit Kerja</label>
                       <input
                         type="text"
-                        className="w-full px-3 py-2 glass-input rounded-xl text-xs text-slate-800 font-mono"
-                        value={formState.SESI || ''}
-                        onChange={(e) => handleInputChange('SESI', e.target.value)}
-                        placeholder="Contoh: 2026"
+                        className="w-full px-3 py-2 glass-input rounded-xl text-xs text-slate-800"
+                        value={formState.TINGKATAN || ''}
+                        onChange={(e) => handleInputChange('TINGKATAN', e.target.value)}
+                        placeholder="Contoh: TINGKATAN 5 / PENTADBIRAN"
                       />
                     </div>
                   </div>
@@ -539,7 +571,7 @@ export default function AdminPanel({
 
                 {/* Section: Kewangan & Saham */}
                 <div className="space-y-3 pt-3 border-t border-slate-100">
-                  <h4 className="font-bold text-indigo-900 border-l-4 border-indigo-600 pl-2">3. Kedudukan Kewangan & Saham</h4>
+                  <h4 className="font-bold text-indigo-900 border-l-4 border-indigo-600 pl-2">3. Kedudukan Kewangan & Dividen (Kiraan Formula Automatik)</h4>
                   <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
                     <div>
                       <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Jumlah Saham Semasa</label>
@@ -550,39 +582,59 @@ export default function AdminPanel({
                         onChange={(e) => handleInputChange('JUMLAH SAHAM SEMASA', e.target.value)}
                         placeholder="Contoh: RM 1500.00"
                       />
+                      <span className="text-[9px] text-slate-400 font-medium block mt-1">Setiap kali nilai saham berubah, dividen di sebelah akan dikira secara automatik.</span>
                     </div>
                     <div>
-                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Suntikan Penambahan Saham</label>
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Dividen Semasa (Anggaran)</label>
+                      <input
+                        type="text"
+                        className="w-full px-3 py-2 glass-input rounded-xl text-xs text-slate-800 font-mono font-bold"
+                        value={formState['DIVIDEN SEMASA'] || 'RM 0.00'}
+                        onChange={(e) => handleInputChange('DIVIDEN SEMASA', e.target.value)}
+                        placeholder="Contoh: RM 97.50"
+                      />
+                      <span className="text-[9px] text-indigo-600 font-bold block mt-1 leading-tight bg-indigo-50 p-1.5 rounded-lg border border-indigo-100">
+                        Formula: Saham × {settings.dividendRate}% <br />
+                        Kiraan: RM {(parseCurrency(formState['JUMLAH SAHAM SEMASA']) * settings.dividendRate / 100).toLocaleString('ms-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                    <div>
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Dividen 2023</label>
                       <input
                         type="text"
                         className="w-full px-3 py-2 glass-input rounded-xl text-xs text-slate-800 font-mono"
-                        value={formState['PENAMBAHAN SAHAM'] || 'RM 0.00'}
-                        onChange={(e) => handleInputChange('PENAMBAHAN SAHAM', e.target.value)}
+                        value={formState['DIVIDEN 2023'] || 'RM 0.00'}
+                        onChange={(e) => handleInputChange('DIVIDEN 2023', e.target.value)}
+                        placeholder="Contoh: RM 150.00"
                       />
+                      {isRegisteredBefore2023(formState['TARIKH DAFTAR AHLI']) ? (
+                        <span className="text-[9px] text-amber-700 font-bold block mt-1 leading-tight bg-amber-50 p-1.5 rounded-lg border border-amber-100">
+                          Formula: Saham × {settings.dividendRate}% <br />
+                          Kiraan: RM {(parseCurrency(formState['JUMLAH SAHAM SEMASA']) * settings.dividendRate / 100).toLocaleString('ms-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
+                      ) : (
+                        <span className="text-[9px] text-rose-700 font-bold block mt-1 leading-tight bg-rose-50 p-1.5 rounded-lg border border-rose-100">
+                          Mendaftar mulai tahun {formState['TARIKH DAFTAR AHLI'] ? String(formState['TARIKH DAFTAR AHLI']).split('/').pop() : '2023'} <br />
+                          Kiraan: RM 0.00 (Boleh diedit)
+                        </span>
+                      )}
                     </div>
                     <div>
-                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Dividen Terhitung Semasa</label>
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Status Syer</label>
                       <input
                         type="text"
-                        disabled
-                        className="w-full px-3 py-2 bg-slate-100/50 border border-slate-200 rounded-xl text-xs text-slate-500 font-mono font-bold"
-                        value={formState['DIVIDEN TAHUN SEMASA'] || 'RM 0.00'}
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Syer Dikeluarkan (Jika Ada)</label>
-                      <input
-                        type="text"
-                        className="w-full px-3 py-2 glass-input rounded-xl text-xs text-slate-800 font-mono"
-                        value={formState['PENGELUARAN SAHAM'] || 'RM 0.00'}
-                        onChange={(e) => handleInputChange('PENGELUARAN SAHAM', e.target.value)}
+                        className="w-full px-3 py-2 glass-input rounded-xl text-xs text-slate-800 font-semibold"
+                        value={formState['STATUS SYER'] || 'AKTIF'}
+                        onChange={(e) => handleInputChange('STATUS SYER', e.target.value)}
+                        placeholder="Contoh: AKTIF / TAMAT"
                       />
                     </div>
                   </div>
                 </div>
 
-                {/* Optional Logs */}
+                {/* Section: Tarikh & Maklumat Pemulangan */}
                 <div className="space-y-3 pt-3 border-t border-slate-100">
+                  <h4 className="font-bold text-indigo-900 border-l-4 border-indigo-600 pl-2">4. Tarikh & Kaedah Kembalian Syer</h4>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div>
                       <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Tarikh Daftar Ahli</label>
@@ -605,13 +657,13 @@ export default function AdminPanel({
                       />
                     </div>
                     <div>
-                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Tingkatan / Unit Kerja</label>
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Kaedah Kembalian Syer</label>
                       <input
                         type="text"
                         className="w-full px-3 py-2 glass-input rounded-xl text-xs text-slate-800"
-                        value={formState.TINGKATAN || ''}
-                        onChange={(e) => handleInputChange('TINGKATAN', e.target.value)}
-                        placeholder="Contoh: TINGKATAN 5 / PENTADBIRAN"
+                        value={formState['KAEDAH KEMBALIAN SYER'] || ''}
+                        onChange={(e) => handleInputChange('KAEDAH KEMBALIAN SYER', e.target.value)}
+                        placeholder="Contoh: PINDAHAN BANK / TUNAI"
                       />
                     </div>
                   </div>
@@ -967,6 +1019,35 @@ function doGet(e) {
                   </button>
                 </div>
               </div>
+            </div>
+          </div>
+
+          {/* Section: Kira Semula Dividen Secara Pukal */}
+          <div className="bg-gradient-to-r from-emerald-50 to-teal-50 p-5 rounded-2xl border border-emerald-200/60 space-y-3">
+            <div className="flex items-start gap-3">
+              <div className="bg-emerald-600 text-white p-2 rounded-xl shrink-0 shadow-md shadow-emerald-600/10">
+                <RefreshCw className="w-5 h-5" />
+              </div>
+              <div className="space-y-1">
+                <h4 className="font-bold text-slate-800 text-xs sm:text-sm">Kiraan Pukal: Auto-Kira Semua Dividen Ahli</h4>
+                <p className="text-[11px] text-slate-600 leading-relaxed">
+                  Adakah anda ingin mengira semula <strong>Dividen Semasa</strong> dan <strong>Dividen 2023</strong> secara automatik bagi kesemua ahli ({members.length} orang) berdasarkan formula matematik? 
+                </p>
+                <div className="pt-2">
+                  <div className="inline-block bg-white/80 px-3 py-1.5 rounded-lg border border-emerald-150/50 text-[10px] font-bold text-emerald-800 font-mono mb-2">
+                    Formula: [Jumlah Saham Semasa] × {settingsForm.dividendRate}% = Dividen
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="flex justify-start pl-11">
+              <button
+                type="button"
+                onClick={handleRecalculateAllDividends}
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 transition-colors shadow-sm"
+              >
+                <RefreshCw className="w-3.5 h-3.5" /> Kira Semula Semua Dividen (Formula Automatik)
+              </button>
             </div>
           </div>
 

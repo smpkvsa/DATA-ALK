@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
-import { Member } from '../types';
-import { filterMembers, parseCurrency, formatCurrency } from '../utils/memberUtils';
+import { Member, SystemSettings } from '../types';
+import { filterMembers, parseCurrency, formatCurrency, isRegisteredBefore2023 } from '../utils/memberUtils';
 import { 
   Search, 
   Filter, 
@@ -17,9 +17,10 @@ import {
 
 interface MembersListProps {
   members: Member[];
+  settings: SystemSettings;
 }
 
-export default function MembersList({ members }: MembersListProps) {
+export default function MembersList({ members, settings }: MembersListProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusDaftar, setStatusDaftar] = useState('');
   const [statusAhli, setStatusAhli] = useState('');
@@ -205,7 +206,13 @@ export default function MembersList({ members }: MembersListProps) {
                       </td>
                       <td className="py-3.5 px-4">
                         <div className="font-medium text-slate-700">{member['STATUS AHLI'] || 'LAIN-LAIN'}</div>
-                        {member.SESI && <div className="text-[10px] text-slate-400 font-mono">Sesi: {member.SESI}</div>}
+                        {(member.TINGKATAN || member.KURSUS) ? (
+                          <div className="text-[10px] text-slate-400 font-medium truncate max-w-[150px]" title={[member.TINGKATAN, member.KURSUS].filter(Boolean).join(' - ')}>
+                            {[member.TINGKATAN, member.KURSUS].filter(Boolean).join(' - ')}
+                          </div>
+                        ) : member.SESI ? (
+                          <div className="text-[10px] text-slate-400 font-mono">Sesi: {member.SESI}</div>
+                        ) : null}
                       </td>
                       <td className="py-3.5 px-4 text-right font-bold text-slate-800 font-mono">
                         {formatCurrency(sahamVal)}
@@ -320,19 +327,19 @@ export default function MembersList({ members }: MembersListProps) {
                   <span className="font-medium text-slate-800">{selectedMember.JANTINA || '-'}</span>
                 </div>
                 <div>
-                  <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider block">No. Telefon</span>
-                  <span className="font-mono font-semibold text-slate-800">{selectedMember['NO TEL'] || '-'}</span>
-                </div>
-                <div>
                   <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider block">Kategori Ahli</span>
                   <span className="font-semibold text-indigo-600">{selectedMember['STATUS AHLI'] || '-'}</span>
+                </div>
+                <div>
+                  <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider block">Kursus</span>
+                  <span className="font-medium text-slate-800">{selectedMember.KURSUS || '-'}</span>
                 </div>
               </div>
 
               {/* Financial Section */}
               <div className="space-y-3">
                 <h4 className="font-bold text-slate-800 border-b border-slate-100 pb-1.5 flex items-center gap-1.5">
-                  <CreditCard className="w-4 h-4 text-emerald-500" /> Ringkasan Kewangan & Saham
+                  <CreditCard className="w-4 h-4 text-emerald-500" /> Ringkasan Kewangan, Saham & Dividen
                 </h4>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="bg-emerald-50/50 p-3 rounded-lg border border-emerald-100">
@@ -342,32 +349,61 @@ export default function MembersList({ members }: MembersListProps) {
                     </span>
                   </div>
 
-                  <div className="bg-amber-50/30 p-3 rounded-lg border border-amber-100">
-                    <span className="text-[10px] text-amber-800 uppercase font-bold tracking-wider block">Syer Tambahan</span>
-                    <span className="text-sm font-bold text-slate-800 font-mono block mt-1">
-                      {selectedMember['PENAMBAHAN SAHAM'] || 'RM 0.00'}
+                  <div className="bg-sky-50/50 p-3 rounded-lg border border-sky-100 flex flex-col justify-between">
+                    <div>
+                      <span className="text-[10px] text-sky-800 uppercase font-bold tracking-wider block">Dividen Semasa</span>
+                      <span className="text-base font-extrabold text-indigo-700 font-mono block mt-1">
+                        {selectedMember['DIVIDEN SEMASA'] && selectedMember['DIVIDEN SEMASA'] !== 'RM 0.00' && selectedMember['DIVIDEN SEMASA'] !== 'RM 0' ? (
+                          selectedMember['DIVIDEN SEMASA']
+                        ) : (
+                          formatCurrency((parseCurrency(selectedMember['JUMLAH SAHAM SEMASA']) * settings.dividendRate) / 100)
+                        )}
+                      </span>
+                    </div>
+                    <span className="text-[9px] text-slate-400 block mt-1 font-semibold leading-tight border-t border-sky-100/50 pt-1">
+                      Kiraan: Saham × {settings.dividendRate}%
                     </span>
-                    {selectedMember['TARIKH PENAMBAHAN'] && (
-                      <span className="text-[9px] text-slate-400 font-mono mt-0.5 block">Tkh: {selectedMember['TARIKH PENAMBAHAN']}</span>
-                    )}
                   </div>
 
-                  <div className="bg-rose-50/30 p-3 rounded-lg border border-rose-100">
-                    <span className="text-[10px] text-rose-800 uppercase font-bold tracking-wider block">Syer Dikeluarkan</span>
-                    <span className="text-sm font-bold text-slate-800 font-mono block mt-1">
-                      {selectedMember['PENGELUARAN SAHAM'] || 'RM 0.00'}
+                  <div className="bg-amber-50/40 p-3 rounded-lg border border-amber-100 flex flex-col justify-between">
+                    <div>
+                      <span className="text-[10px] text-amber-800 uppercase font-bold tracking-wider block">Dividen 2023</span>
+                      <span className="text-sm font-bold text-slate-800 font-mono block mt-1">
+                        {selectedMember['DIVIDEN 2023'] && selectedMember['DIVIDEN 2023'] !== 'RM 0.00' && selectedMember['DIVIDEN 2023'] !== 'RM 0' ? (
+                          selectedMember['DIVIDEN 2023']
+                        ) : isRegisteredBefore2023(selectedMember['TARIKH DAFTAR AHLI']) ? (
+                          formatCurrency((parseCurrency(selectedMember['JUMLAH SAHAM SEMASA']) * settings.dividendRate) / 100)
+                        ) : (
+                          'RM 0.00'
+                        )}
+                      </span>
+                    </div>
+                    <span className="text-[9px] text-slate-400 block mt-1 font-semibold leading-tight border-t border-amber-100/50 pt-1">
+                      {isRegisteredBefore2023(selectedMember['TARIKH DAFTAR AHLI']) ? (
+                        `Kiraan: Saham × ${settings.dividendRate}%`
+                      ) : (
+                        "Tiada (Mendaftar mulai tahun 2023)"
+                      )}
                     </span>
-                    {selectedMember['TARIKH PENGELUARAN'] && (
-                      <span className="text-[9px] text-slate-400 font-mono mt-0.5 block">Tkh: {selectedMember['TARIKH PENGELUARAN']}</span>
-                    )}
                   </div>
 
-                  <div className="bg-sky-50/50 p-3 rounded-lg border border-sky-100">
-                    <span className="text-[10px] text-sky-800 uppercase font-bold tracking-wider block">Dividen Terkini</span>
-                    <span className="text-sm font-bold text-slate-800 font-mono block mt-1">
-                      {selectedMember['DIVIDEN TAHUN SEMASA'] || 'RM 0.00'}
+                  <div className="bg-purple-50/50 p-3 rounded-lg border border-purple-100">
+                    <span className="text-[10px] text-purple-800 uppercase font-bold tracking-wider block">Status Syer</span>
+                    <span className="text-sm font-bold text-purple-900 block mt-1">
+                      {selectedMember['STATUS SYER'] || '-'}
                     </span>
                   </div>
+                </div>
+              </div>
+
+              {/* Share Return details if stopped or populated */}
+              <div className="space-y-3">
+                <h4 className="font-bold text-slate-800 border-b border-slate-100 pb-1.5 flex items-center gap-1.5">
+                  <Info className="w-4 h-4 text-slate-500" /> Kaedah Kembalian Syer
+                </h4>
+                <div className="bg-slate-50 p-3.5 rounded-lg border border-slate-150">
+                  <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider block">Kaedah Kembalian</span>
+                  <span className="font-medium text-slate-800 block mt-0.5">{selectedMember['KAEDAH KEMBALIAN SYER'] || 'Tiada tetapan kembalian'}</span>
                 </div>
               </div>
 
@@ -376,25 +412,19 @@ export default function MembersList({ members }: MembersListProps) {
                 <h4 className="font-bold text-slate-800 border-b border-slate-100 pb-1.5 flex items-center gap-1.5">
                   <Calendar className="w-4 h-4 text-indigo-500" /> Sejarah Pendaftaran
                 </h4>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-4 text-slate-700">
                   <div>
                     <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider block">Tarikh Daftar</span>
-                    <span className="font-medium text-slate-700">{selectedMember['TARIKH DAFTAR AHLI'] || 'Tiada Rekod'}</span>
+                    <span className="font-medium">{selectedMember['TARIKH DAFTAR AHLI'] || 'Tiada Rekod'}</span>
                   </div>
                   <div>
                     <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider block">Tarikh Berhenti</span>
-                    <span className="font-medium text-slate-700">{selectedMember['TARIKH BEHENTI'] || 'Aktif'}</span>
+                    <span className="font-medium">{selectedMember['TARIKH BEHENTI'] || 'Aktif'}</span>
                   </div>
-                  {selectedMember.SESI && (
-                    <div>
-                      <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider block">Sesi/Tahun</span>
-                      <span className="font-medium text-slate-700">{selectedMember.SESI}</span>
-                    </div>
-                  )}
                   {selectedMember.TINGKATAN && selectedMember.TINGKATAN !== '0' && (
                     <div>
                       <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider block">Tingkatan / Unit</span>
-                      <span className="font-medium text-slate-700">{selectedMember.TINGKATAN}</span>
+                      <span className="font-medium">{selectedMember.TINGKATAN}</span>
                     </div>
                   )}
                 </div>

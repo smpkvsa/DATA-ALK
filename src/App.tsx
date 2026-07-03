@@ -6,6 +6,7 @@ import MembersList from './components/MembersList';
 import Reports from './components/Reports';
 import AdminPanel from './components/AdminPanel';
 import PrintReport from './components/PrintReport';
+import CoopLogo from './components/CoopLogo';
 import { normalizeSheetsUrl, parseCSV } from './utils/sheetsSync';
 import { 
   LayoutDashboard, 
@@ -23,7 +24,7 @@ import {
 } from 'lucide-react';
 
 const DEFAULT_SETTINGS: SystemSettings = {
-  cooperativeName: 'Kelab Kebajikan Guru & Staf VoxMaju',
+  cooperativeName: 'Koperasi Sekolah Menengah Pendidikan Khas Vokasional Berhad',
   dividendRate: 6.5,
   financialYear: '2026',
   minShareAmount: 50.00,
@@ -49,7 +50,12 @@ export default function App() {
     try {
       const stored = localStorage.getItem('vox_system_settings');
       if (stored) {
-        return JSON.parse(stored);
+        const parsed = JSON.parse(stored);
+        // Automatically upgrade old default placeholder name to the new official logo name
+        if (parsed.cooperativeName === 'Kelab Kebajikan Guru & Staf VoxMaju') {
+          parsed.cooperativeName = 'Koperasi Sekolah Menengah Pendidikan Khas Vokasional Berhad';
+        }
+        return parsed;
       }
     } catch (e) {
       console.error('Failed to load settings from localStorage', e);
@@ -167,11 +173,9 @@ export default function App() {
     <div className="min-h-screen bg-slate-100 flex flex-col md:flex-row font-sans relative overflow-hidden" id="main-app-layout">
       {/* Mobile Top Header (Hidden on Desktop) */}
       <header className="md:hidden bg-slate-900/95 backdrop-blur-md text-white py-4 px-5 flex justify-between items-center border-b border-slate-850 shrink-0 z-40">
-        <div className="flex items-center gap-2">
-          <div className="p-1.5 bg-indigo-600 rounded-lg text-white">
-            <TrendingUp className="w-4 h-4" />
-          </div>
-          <span className="font-extrabold text-sm uppercase tracking-wider font-sans">VoxMaju</span>
+        <div className="flex items-center gap-2.5">
+          <CoopLogo size={38} />
+          <span className="font-extrabold text-xs uppercase tracking-wider font-sans leading-tight">VoxMaju</span>
         </div>
         <div className="flex items-center gap-3">
           {settings.googleSheetsUrl && (
@@ -213,12 +217,10 @@ export default function App() {
         {/* Sidebar Header */}
         <div className="p-6">
           <div className="flex items-center gap-3 border-b border-slate-800/80 pb-5">
-            <div className="p-2 bg-indigo-600 rounded-xl text-white shadow-lg shadow-indigo-600/25">
-              <TrendingUp className="w-5 h-5" />
-            </div>
+            <CoopLogo size={52} />
             <div>
-              <h1 className="font-extrabold text-base uppercase tracking-wider font-sans">VoxMaju</h1>
-              <p className="text-[10px] text-slate-400 font-mono">Sistem Saham & Ahli</p>
+              <h1 className="font-extrabold text-sm uppercase tracking-wider font-sans leading-tight">VoxMaju</h1>
+              <p className="text-[10px] text-slate-400 font-mono mt-0.5">Sistem Saham & Ahli</p>
             </div>
           </div>
 
@@ -383,6 +385,7 @@ export default function App() {
           {activeTab === 'members' && (
             <MembersList 
               members={members} 
+              settings={settings}
             />
           )}
 
