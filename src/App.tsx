@@ -175,7 +175,7 @@ export default function App() {
       <header className="md:hidden bg-slate-900/95 backdrop-blur-md text-white py-4 px-5 flex justify-between items-center border-b border-slate-850 shrink-0 z-40">
         <div className="flex items-center gap-2.5">
           <CoopLogo size={38} />
-          <span className="font-extrabold text-xs uppercase tracking-wider font-sans leading-tight">VoxMaju</span>
+          <span className="font-extrabold text-xs uppercase tracking-wider font-sans leading-tight">Koperasi</span>
         </div>
         <div className="flex items-center gap-3">
           {settings.googleSheetsUrl && (
