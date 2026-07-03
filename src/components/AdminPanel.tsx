@@ -207,7 +207,7 @@ export default function AdminPanel({
         if (!res.success) {
           triggerNotice(`Sinc Gagal: ${res.message}. Data dikemaskini di Cache Tempatan sahaja.`, 'error');
         } else {
-          triggerNotice('Maklumat ahli berjaya dikemaskini ke Google Sheets & Sistem!');
+          triggerNotice('Maklumat ahli berjaya dikemaskini ke Sistem!');
         }
       } else {
         triggerNotice('Maklumat ahli berjaya dikemaskini!');
@@ -231,7 +231,7 @@ export default function AdminPanel({
         if (!res.success) {
           triggerNotice(`Sinc Gagal: ${res.message}. Data dikeluarkan dari Cache Tempatan sahaja.`, 'error');
         } else {
-          triggerNotice('Rekod ahli berjaya dihapuskan dari Google Sheets & Sistem!');
+          triggerNotice('Rekod ahli berjaya dihapuskan dari Sistem!');
         }
       } else {
         triggerNotice('Rekod ahli berjaya dihapuskan!');
@@ -336,7 +336,7 @@ export default function AdminPanel({
           </form>
 
           <p className="text-[10px] text-slate-400 font-mono">
-            KATA LALUAN PROTOTIP: "voxmajuterus"
+            KATA LALUAN : "Rujuk Setiausaha Koop ya!"
           </p>
         </div>
       </div>
